@@ -17,7 +17,7 @@ That's it.
 
 .. code-block:: console
 
-    $ ./isicmd -h
+    $ isicmd -h
     usage: isicmd [-h] [--raw] [--verbose] [--server SERVER] [--tag TAG]
                   endpoint [paramaters [paramaters ...]]
 
@@ -35,7 +35,7 @@ That's it.
 
 Some examples of the isicmd::
 
-    $ ./isicmd 'cluster/config' | jq . | head -n 9
+    $ isicmd 'cluster/config' | jq . | head -n 9
      204.1  MainProcess: W      api:29   Connection to MYCLUSTER:8080 proceeding without SSL verification
     [
       {
@@ -47,7 +47,7 @@ Some examples of the isicmd::
                 "is_up": true,
                 "lnn": 1
 
-    $ ./isicmd 'quota/quotas' | jq 'sort_by(.path)' | head                                                                                                                              
+    $ isicmd 'quota/quotas' | jq 'sort_by(.path)' | head                                                                                                                              
      215.0  MainProcess: W      api:29   Connection to MYCLUSTER:8080 proceeding without SSL verification
      [
        {
@@ -62,7 +62,7 @@ Some examples of the isicmd::
 
 If you need to pass get options you can just type them out on the command line::
 
-    $ ./isicmd 'quota/quotas' exceeded=true | jq 'sort_by(.path)' | head
+    $ isicmd 'quota/quotas' exceeded=true | jq 'sort_by(.path)' | head
      198.8  MainProcess: W      api:29   Connection to MYCLUSTER:8080 proceeding without SSL verification
      [
        {
@@ -77,7 +77,7 @@ If you need to pass get options you can just type them out on the command line::
 
 You can even get a listing of all endpoints::
 
-    $ ./isicmd '' describe list all | jq 'sort' | head
+    $ isicmd '' describe list all | jq 'sort' | head
      205.1  MainProcess: W      api:29   Connection to MYCLUSTER:8080 proceeding without SSL verification
      [
        "/3/antivirus/policies",
@@ -92,7 +92,7 @@ You can even get a listing of all endpoints::
 
 And even get online help for any endpoing::
 
-    $ ./isicmd 'antivirus/scan' describe  | head -n 13
+    $ isicmd 'antivirus/scan' describe  | head -n 13
      198.1  MainProcess: W      api:29   Connection to MYCLUSTER:8080 proceeding without SSL verification
      Resource URL: /platform/3/antivirus/scan
 
