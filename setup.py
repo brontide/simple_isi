@@ -22,6 +22,7 @@ setup(name='simple_isi',
       packages=['simple_isi'],
       install_requires=[
           'requests',
+          'PyYAML',
       ],
       entry_points={
           'console_scripts': ['isicmd=simple_isi.cmd:main'],
