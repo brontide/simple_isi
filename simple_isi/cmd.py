@@ -34,7 +34,7 @@ def main():
     # merge in saved defaults
     for filename in ('isilon.yaml', os.path.join(os.path.expanduser('~'),'.isilon_yaml')):
         try:
-            config.update(yaml.load(open(filename)))
+            config.update(yaml.safe_load(open(filename)))
         except:
             pass
 
