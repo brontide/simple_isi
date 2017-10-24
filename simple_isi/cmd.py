@@ -1,7 +1,6 @@
 from simple_isi import IsiClient, PAPIClient
 from json import dumps
 import sys
-from secret import api_password
 import argparse
 import logging
 import yaml
