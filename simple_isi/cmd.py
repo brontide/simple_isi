@@ -4,6 +4,7 @@ import sys
 import argparse
 import logging
 import yaml
+import os
 
 logger = logging.getLogger()
 logging.basicConfig(
@@ -31,7 +32,7 @@ def main():
     args = parser.parse_args()
 
     # merge in saved defaults
-    for filename in ('isilon.yaml', '~/.isilon_yaml'):
+    for filename in ('isilon.yaml', os.path.join(os.path.expanduser('~'),'.isilon_yaml')):
         try:
             config.update(yaml.load(open(filename)))
         except:
