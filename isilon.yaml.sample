@@ -1,0 +1,5 @@
+--- 
+server: YOURSERVER
+username: USER
+password: PASSWORD
+# verify: false # If your ssl doesn't validate 
