@@ -58,13 +58,12 @@ def main():
     except:
         pass
 
-    client = IsiClient(server=config['server'], port=config['port'], auth=auth, verify=config['verify'])
-    if not auth:
-        # No saved credentials, try to gather from stdin
-        client.auth()
+    client = IsiClient(**config)
+    client.auth()
 
     papi = PAPIClient(client)
 
+    # Munge paramaters into a dict
     params = dict(map(lambda x: x + [''] * (2 - len(x)), (x.split("=",1) for x in args.paramaters)))
 
     out = papi.get(args.endpoint, **params)

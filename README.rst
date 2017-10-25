@@ -10,6 +10,10 @@ isicmd - command line
 
 **INSTALL**
 
+::
+
+    pip3 install simple_isi
+
 1. Create a isilon.yaml in the cwd or ~/.isilon_yaml with your isilon host settings
 2. (OPTIONAL) Install jq for more advanced post processing
 

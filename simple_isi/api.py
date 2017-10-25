@@ -3,6 +3,8 @@ import logging
 from types import MethodType
 from getpass import getpass, getuser
 import sys
+from http.cookiejar import LWPCookieJar
+import os
     
 # FIXME, this should go away once we figure out how to get the
 # certificate to validate
@@ -22,30 +24,131 @@ class IsiApiError(ValueError):
 class IsiClient:
     # Bare bones Isilon RESTful client designed for utter simplicity
 
-    def __init__(self, server, auth=None, port=8080, verify=None):
+    def __init__(self, server=None, username='', password='', port=8080, verify=None):
+        self._cookiejar_path = os.path.join(os.path.expanduser('~'), '.isilon_cookiejar')
         self._s = requests.Session()
-        if auth:
-            self._s.auth = auth
-        if verify == False:
-            logger.warning("Connection to %s:%i proceeding without SSL verification", server, port)
-        if verify != None:
-            self._s.verify = verify
-        self.server = server
-        self.port = port
+        self._s.cookies = LWPCookieJar()
+        try:
+            self._s.cookies.load(self._cookiejar_path, ignore_discard=True, ignore_expires=True)
+        except:
+            pass
+        self._server = server
+        self._username = username
+        self._password = password
+        self._port = port
+        self._s.verify = verify
+        self.ready = False
+        if len(self._s.cookies):
+            logger.debug("Attempting to use cached credentials")
+            length = self.session()
+
+    @property
+    def server(self):
+        # Servername for Isilon
+        return self._server
+
+    @server.setter
+    def server(self, value):
+        if value != self.server:
+            self.server = value
+            self.ready = False
+
+    @property
+    def port(self):
+        # Portnumber for isilon, defaults to 8080
+        return self._port
+
+    @port.setter
+    def port(self, value):
+        if self.port != value:
+            self.port = value
+            self.ready = False
+
+    @property
+    def username(self):
+        # username for restful session
+        return self._username
+
+    @username.setter
+    def username(self, value):
+        if self.username != value:
+            self._username = value
+            self.ready = False
+
+    @property
+    def password(self):
+        # password for connection ( getter returns dummy info )
+        if self._password:
+            return "*"*len(self._password)
+        else:
+            return "********"
+
+    @password.setter
+    def password(self, value):
+        self._password = value
+        self.ready = False
+
+    @property
+    def verify(self):
+        # Sets requests verify flag, set to False to disable SSL verification of the connection
+        return self._s.verify
+
+    @verify.setter
+    def verify(self,value):
+        if self.verify != value:
+            if verify == False:
+                logger.warning("Connection to %s:%i proceeding without SSL verification", server, port)
+            self._s.verify = value
+            self.ready = False
+
+    def session(self):
+        # returns the time remaining in the session
+        try:
+            out = self.get('session/1/session')
+            data = out.json()
+            self.username = data['username']
+            length = max(data["timeout_absolute"], data["timeout_inactive"])
+            if length > 60:
+                # good senssion
+                self.ready = True
+                self._s.cookies.save(self._cookiejar_path, ignore_discard=True, ignore_expires=True)
+                return length
+        except:
+            pass
+        return None
+
+    def create_session(self):
+        # attempts to authenticate with session module
+        login = { 'username': self.username, 'password': self._password, 'services': ['platform', 'namespace'] }
+        try:
+            self.post(login, 'session/1/session')
+            self.ready = True
+        except:
+            logger.debug("Login failure")
+        return self.session()
+        
 
     def __repr__(self):
         if self._s.auth:
-            auth = "with auth of {}/{}".format(self._s.auth[0], "*"*len(self._s.auth[1]))
+            auth = "with auth of {}/{}".format(self.username, self.password)
         else:
             auth = "NO AUTHENTICATION TOKEN"
         return "IsiClient-https://{}:{} {}".format(self.server, self.port, auth) 
 
     def auth(self):
         # Query for interactive credentials
+        
+        # Are we already authed?
+        length = self.session()
+        if length:
+            return length 
 
         # only works for ttys
         if not sys.stdin.isatty():
-            return
+            logger.warning("Session not ready and no interactive credentials, this will probably fail")
+            return None
+
+        # Start interactive login
         print("Please enter credentials for Isilon https://{}:{}\nUsername (CR={}): ".format(self.server, self.port, getuser()), file=sys.stderr, flush=True, end='')
         username = input()
         if username == "":
@@ -53,7 +156,10 @@ class IsiClient:
         print("Password : ", file=sys.stderr, flush=True, end='')
         password = getpass('')
 
-        self._s.auth = (username, password)
+        self.username = username
+        self.password = password
+
+        return self.create_session()
 
     def get(self, path, append_prefix=True, raise_on_error=True, stream=False, **params):
         # Perform a RESTful get on the Isilo
@@ -70,15 +176,15 @@ class IsiClient:
         return out
 
        
-    def put(self, json_data, path, append_prefix=True, raise_on_error=True, stream=False, **params):
-        # Perform a RESTful put on the Isilo
+    def post(self, json_data, path, append_prefix=True, raise_on_error=True, stream=False, **params):
+        # Perform a RESTful post on the Isilo
         # 
         if append_prefix:
             url = 'https://{}:{}/{}'.format(self.server, self.port, path)
         else:
             url = path
         logger.debug("PUT %s <- %s", url, repr(json_data)[:20])
-        out = self._s.put(url, json=json_data, stream=stream, params=params)
+        out = self._s.post(url, json=json_data, stream=stream, params=params)
         logger.debug("Results from %s status %i preview %s", out.url, out.status_code, out.text[:20])
         if raise_on_error and out.status_code != requests.codes.ok:
             raise IsiApiError(out)

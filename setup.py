@@ -6,7 +6,7 @@ def readme():
 
 
 setup(name='simple_isi',
-      version='0.1',
+      version='0.2',
       description='Bare-bones json interaction with EMC Isilon clusters',
       long_description=readme(),
       classifiers=[
