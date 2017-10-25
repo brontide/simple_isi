@@ -56,8 +56,8 @@ class IsiClient:
 
     @server.setter
     def server(self, value):
-        if value != self.server:
-            self.server = value
+        if value != self._server:
+            self._server = value
             self.ready = False
 
     @property
@@ -67,8 +67,8 @@ class IsiClient:
 
     @port.setter
     def port(self, value):
-        if self.port != value:
-            self.port = value
+        if self._port != value:
+            self._port = value
             self.ready = False
 
     @property
@@ -78,7 +78,7 @@ class IsiClient:
 
     @username.setter
     def username(self, value):
-        if self.username != value:
+        if self._username != value:
             self._username = value
             self.ready = False
 
@@ -102,7 +102,7 @@ class IsiClient:
 
     @verify.setter
     def verify(self,value):
-        if self.verify != value:
+        if self._s.verify != value:
             if verify == False:
                 logger.warning("Connection to %s:%i proceeding without SSL verification", server, port)
             self._s.verify = value
