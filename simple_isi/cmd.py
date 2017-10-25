@@ -26,7 +26,7 @@ def main():
     parser.add_argument("--raw", help="Pass json through, no resume support", action='store_true')
     parser.add_argument('--verbose', '-v', action='count')
     parser.add_argument("--server", help="server name")
-    parser.add_argument("--noverify", help="Turn off SSL verification", action='store_true')
+    parser.add_argument("--noverify", help="Turn off SSL verification", action='store_false', default=None)
     parser.add_argument("--tag", help="Parse and return tag from results with resume support")
     parser.add_argument("endpoint", help="PAPI endpoint")
     parser.add_argument("paramaters", nargs="*", help="endpoint paramters")
@@ -53,7 +53,8 @@ def main():
         auth=None
     
     try:
-        config['verify'] = not args.noverify
+        if args.noverify != None:
+            config['verify'] = args.noverify
     except:
         pass
 
