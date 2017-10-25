@@ -26,6 +26,7 @@ def main():
     parser.add_argument("--raw", help="Pass json through, no resume support", action='store_true')
     parser.add_argument('--verbose', '-v', action='count')
     parser.add_argument("--server", help="server name")
+    parser.add_argument("--noverify", help="Turn off SSL verification", action='store_true')
     parser.add_argument("--tag", help="Parse and return tag from results with resume support")
     parser.add_argument("endpoint", help="PAPI endpoint")
     parser.add_argument("paramaters", nargs="*", help="endpoint paramters")
@@ -46,7 +47,21 @@ def main():
         logger.setLevel(30-(10*args.verbose))
 
     # create client
-    client = IsiClient(server=config['server'], port=config['port'], auth=(config['username'], config['password']), verify=config['verify'])
+    if config['username'] != '' and config['password'] != '':
+        auth=(config['username'], config['password'])
+    else:
+        auth=None
+    
+    try:
+        config['verify'] = not args.noverify
+    except:
+        pass
+
+    client = IsiClient(server=config['server'], port=config['port'], auth=auth, verify=config['verify'])
+    if not auth:
+        # No saved credentials, try to gather from stdin
+        client.auth()
+
     papi = PAPIClient(client)
 
     params = dict(map(lambda x: x + [''] * (2 - len(x)), (x.split("=",1) for x in args.paramaters)))

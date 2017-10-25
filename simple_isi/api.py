@@ -2,6 +2,7 @@ import requests
 import logging
 from types import MethodType
 from getpass import getpass
+import sys
     
 # FIXME, this should go away once we figure out how to get the
 # certificate to validate
@@ -39,11 +40,17 @@ class IsiClient:
             auth = "NO AUTHENTICATION TOKEN"
         return "IsiClient-https://{}:{} {}".format(self.server, self.port, auth) 
 
-    def interactive_login(self):
+    def auth(self):
         # Query for interactive credentials
-        print("Please enter credentials for Isilon https://{}:{}".format(self.server, self.port))
-        username = input("Username : ")
-        password = getpass("Password : ")
+
+        # only works for ttys
+        if not sys.stdin.isatty():
+            return
+        print("Please enter credentials for Isilon https://{}:{}\nUsername : ".format(self.server, self.port), file=sys.stderr, flush=True, end='')
+        username = input()
+        print("Password : ", file=sys.stderr, flush=True, end='')
+        password = getpass('')
+
         self._s.auth = (username, password)
 
     def get(self, path, append_prefix=True, raise_on_error=True, stream=False, **params):
