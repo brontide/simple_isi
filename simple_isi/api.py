@@ -1,7 +1,7 @@
 import requests
 import logging
 from types import MethodType
-from getpass import getpass
+from getpass import getpass, getuser
 import sys
     
 # FIXME, this should go away once we figure out how to get the
@@ -46,8 +46,10 @@ class IsiClient:
         # only works for ttys
         if not sys.stdin.isatty():
             return
-        print("Please enter credentials for Isilon https://{}:{}\nUsername : ".format(self.server, self.port), file=sys.stderr, flush=True, end='')
+        print("Please enter credentials for Isilon https://{}:{}\nUsername (CR={}): ".format(self.server, self.port, getuser()), file=sys.stderr, flush=True, end='')
         username = input()
+        if username == "":
+            username = getuser()
         print("Password : ", file=sys.stderr, flush=True, end='')
         password = getpass('')
 
