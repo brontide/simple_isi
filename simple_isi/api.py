@@ -39,8 +39,15 @@ class IsiClient:
         self._s.verify = verify
         self.ready = False
         if len(self._s.cookies):
+            # if we have cookies make an attempt to login
             logger.debug("Attempting to use cached credentials")
             length = self.session()
+        if not self.ready:
+            # still not ready? let's make a blind attempt to login
+            try:
+                self.create_session()
+            except:
+                pass
 
     @property
     def server(self):
@@ -119,6 +126,8 @@ class IsiClient:
 
     def create_session(self):
         # attempts to authenticate with session module
+        if self.username == '' or self._password == '':
+            raise ValueError("Can't login without credentials")
         login = { 'username': self.username, 'password': self._password, 'services': ['platform', 'namespace'] }
         try:
             self.post(login, 'session/1/session')

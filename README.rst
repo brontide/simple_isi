@@ -34,6 +34,7 @@ That's it.
                   --raw            Pass json through, no resume support
                   --verbose, -v
                   --server SERVER  server name
+                  --noverify       Turn off SSL verification
                   --tag TAG        Parse and return tag from results with resume support
 
 
