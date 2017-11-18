@@ -6,13 +6,14 @@ def readme():
 
 
 setup(name='simple_isi',
-      version='0.2',
+      version='0.3',
       description='Bare-bones json interaction with EMC Isilon clusters',
       long_description=readme(),
       classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 2.7.5',
       ],
       keywords='isilon',
       url='http://github.com/brontide/simple_isi',
@@ -23,6 +24,7 @@ setup(name='simple_isi',
       install_requires=[
           'requests',
           'PyYAML',
+          'future',
       ],
       entry_points={
           'console_scripts': ['isicmd=simple_isi.cmd:main'],

@@ -1,4 +1,4 @@
-from simple_isi import IsiClient, PAPIClient
+from . import IsiClient, PAPIClient
 from json import dumps
 import sys
 import argparse
@@ -11,6 +11,11 @@ logging.basicConfig(
             level=30,
             format='%(relativeCreated)6.1f %(processName)12s: %(levelname).1s %(module)8.8s:%(lineno)-4d %(message)s')
 
+# Safety
+try:
+    os.umask(0o0077)
+except:
+    logger.warning("Unable to set umask, please verify that cookiejae is safe")
 
 # defaults
 config = {
@@ -71,7 +76,8 @@ def main():
         if args.raw:
             print(out.text)
         else:
-            print(dumps(list(out.fetchall(args.tag))))
+            for item in out.iter_json():
+                print(dumps(item))
     except:
         print(out.text)
 

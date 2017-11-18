@@ -1,3 +1,27 @@
+
+''' Client tools for Isilon restful api '''
+
+# backwards compatible cruft
+from __future__ import print_function
+from builtins import int
+try:
+    from functools import partialmethod
+except:
+    # python 2 hack https://gist.github.com/carymrobbins/8940382
+    from functools import partial
+
+    class partialmethod(partial):
+        def __get__(self, instance, owner):
+            if instance is None:
+                return self
+            return partial(self.func, instance,
+                           *(self.args or ()), **(self.keywords or {}))
+try:
+    input = raw_input
+except NameError:
+    pass
+# END py2 compatibility cruft
+
 import requests
 import logging
 from types import MethodType
@@ -5,10 +29,11 @@ from getpass import getpass, getuser
 import sys
 from http.cookiejar import LWPCookieJar
 import os
-    
+from functools import partial
+
 # FIXME, this should go away once we figure out how to get the
 # certificate to validate
-requests.packages.urllib3.disable_warnings()
+#requests.packages.urllib3.disable_warnings()
 
 logger = logging.getLogger(__name__)
 
@@ -21,27 +46,26 @@ class IsiApiError(ValueError):
         except:
             ValueError.__init__(self, "URL: {} status code {}".format(out.url, out.status_code))
 
-class IsiClient:
+class IsiClient(object):
     # Bare bones Isilon RESTful client designed for utter simplicity
 
-    def __init__(self, server=None, username='', password='', port=8080, verify=None):
-        self._cookiejar_path = os.path.join(os.path.expanduser('~'), '.isilon_cookiejar')
+    def __init__(self, server=None, username='', password='', port=8080, verify=None, config=None):
+        self._cookiejar_path = os.path.expanduser('~/.isilon_cookiejar')
         self._s = requests.Session()
         self._s.cookies = LWPCookieJar()
         try:
             self._s.cookies.load(self._cookiejar_path, ignore_discard=True, ignore_expires=True)
         except:
-            pass
+            logger.warning("Could not load cookies from %s", self._cookiejar_path)
         self._server = server
         self._username = username
         self._password = password
         self._port = port
         self._s.verify = verify
         self.ready = False
-        if len(self._s.cookies):
-            # if we have cookies make an attempt to login
-            logger.debug("Attempting to use cached credentials")
-            length = self.session()
+        # if we have cookies make an attempt to login
+        logger.debug("Attempting to use cached credentials")
+        length = self.session()
         if not self.ready:
             # still not ready? let's make a blind attempt to login
             try:
@@ -130,7 +154,7 @@ class IsiClient:
             raise ValueError("Can't login without credentials")
         login = { 'username': self.username, 'password': self._password, 'services': ['platform', 'namespace'] }
         try:
-            self.post(login, 'session/1/session')
+            self.post('session/1/session', json=login)
             self.ready = True
         except:
             logger.debug("Login failure")
@@ -155,49 +179,41 @@ class IsiClient:
         # only works for ttys
         if not sys.stdin.isatty():
             logger.warning("Session not ready and no interactive credentials, this will probably fail")
-            return None
+        #    return None
 
         # Start interactive login
-        print("Please enter credentials for Isilon https://{}:{}\nUsername (CR={}): ".format(self.server, self.port, getuser()), file=sys.stderr, flush=True, end='')
+        print("Please enter credentials for Isilon https://{}:{}\nUsername (CR={}): ".format(self.server, self.port, getuser()), file=sys.stderr, end='')
         username = input()
         if username == "":
             username = getuser()
-        print("Password : ", file=sys.stderr, flush=True, end='')
-        password = getpass('')
+        password = getpass("{} Password : ".format(username), sys.stderr)
 
         self.username = username
         self.password = password
 
         return self.create_session()
 
-    def get(self, path, append_prefix=True, raise_on_error=True, stream=False, **params):
-        # Perform a RESTful get on the Isilo
-        # 
-        if append_prefix:
-            url = 'https://{}:{}/{}'.format(self.server, self.port, path)
+    def request(self, method, endpoint, x_append_prefix=True, raise_on_error=True, json=None, stream=False, **params):
+        # Perform a RESTful method on the Isilon
+        #
+        if x_append_prefix:
+            url = 'https://{}:{}/{}'.format(self.server, self.port, endpoint)
         else:
-            url = path
-        logger.debug("GET %s", url)
-        out = self._s.get(url, stream=stream, params=params)
+            url = endpoint
+        logger.debug("%s %s <- %s", method, url, repr(json)[:20])
+        out = self._s.request(method, url, json=json, stream=stream, params=params)
+        # monkeypatch for iterating over the Isilon data
+        out.iter_json = partial(self.iter_out, out)
         logger.debug("Results from %s status %i preview %s", out.url, out.status_code, out.text[:20])
         if raise_on_error and out.status_code != requests.codes.ok:
             raise IsiApiError(out)
         return out
-
-       
-    def post(self, json_data, path, append_prefix=True, raise_on_error=True, stream=False, **params):
-        # Perform a RESTful post on the Isilo
-        # 
-        if append_prefix:
-            url = 'https://{}:{}/{}'.format(self.server, self.port, path)
-        else:
-            url = path
-        logger.debug("PUT %s <- %s", url, repr(json_data)[:20])
-        out = self._s.post(url, json=json_data, stream=stream, params=params)
-        logger.debug("Results from %s status %i preview %s", out.url, out.status_code, out.text[:20])
-        if raise_on_error and out.status_code != requests.codes.ok:
-            raise IsiApiError(out)
-        return out
+    
+    # Primary calls are just wrappers around request
+    get = partialmethod(request, 'GET')
+    head = partialmethod(request, 'HEAD')
+    post = partialmethod(request, 'POST')
+    delete = partialmethod(request, 'DELETE')
 
     @staticmethod
     def get_resume_id(out):
@@ -235,15 +251,18 @@ class IsiClient:
             return
 
         # Page through results yielding the tag
+        # this should be yield from but that's not py2 safe
         for page in self.page_out(out):
-            yield from page.json()[tag]
+            # yield from page.json()[tag]
+            for item in page.json()[tag]:
+                yield item
 
     def page_out(self, out):
         # helper to page results that have a resume entity
         yield out
         resume = IsiClient.get_resume_id(out)
         while resume:
-            out = self.get(out.url, append_prefix=False, resume=resume)
+            out = self.get(out.url, x_append_prefix=False, resume=resume)
             yield out
             resume = IsiClient.get_resume_id(out)
    
@@ -257,7 +276,8 @@ class PAPIClient:
 
     def papi_autoscan(self):
         try:
-            self.endpoints = list(self.get('', raw=True, describe='', list='', json='').fetchall())
+            #self.endpoints = list(self.get('', raw=True, describe='', list='', json='').fetchall())
+            self.endpoints = list(self.client.get('platform', describe='', list='', json='').iter_json())
             self.papi_version = max( version for _, version, _ in (x.split('/',2) for x in self.endpoints) )
             self.cluster_config = self.get('cluster/config').json()
             logger.info("Connected to PAPI backed with version %i", int(self.papi_version))
@@ -265,39 +285,15 @@ class PAPIClient:
             logger.exception("Unable to connect to PAPI")
 
 
-    def get(self, path, *vars, raw=False, version=-1, **params):
+    def call(self, method, endpoint, version=None, *vars, **params):
         # call the papi
-        if version == -1 and not raw:
-            version = self.papi_version
-        if not isinstance(path, list):
-            path = [path]
-        if raw:
-            out = self.client.get('/'.join(['platform']+path).format(*map(str,vars)), **params)
-        else:
-            out = self.client.get('/'.join(['platform', str(version)]+path).format(*map(str,vars)), **params)
-        return self.patch(out)
+        version = version if version else self.papi_version
+        if not isinstance(endpoint, list):
+            endpoint = [endpoint]
+        return self.client.request(method,'/'.join(['platform', str(version)]+endpoint).format(*map(str,vars)), **params)
 
-    def patch(self, out):
-        # Monkeypath the requests return to facilitate
-        # fetching and iterating over results
-        def fetchfirst(out, tag=None):
-            data = out.json()
-            if not tag:
-                tag = IsiClient.find_collection(data)
-            if not tag:
-                return data
-
-            ret = data[tag]
-            if isinstance( ret, list):
-                return ret[0]
-            else:
-                return ret
-
-        def fetchall(out, tag=None):
-            yield from self.client.iter_out(out,tag)
-
-        if out.headers['content-type'] == 'application/json':
-            out.fetchfirst = MethodType(fetchfirst, out)
-            out.fetchall = MethodType(fetchall, out)
-        return out
+    get = partialmethod(call, 'GET')
+    head = partialmethod(call, 'HEAD')
+    post = partialmethod(call, 'POST')
+    delete = partialmethod(call, 'DELETE')
 
