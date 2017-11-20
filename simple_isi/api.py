@@ -1,9 +1,15 @@
 
 ''' Client tools for Isilon restful api '''
 
-# backwards compatible cruft
+#
+# BEGIN py2 compatibility section
+#
+
+# print function
 from __future__ import print_function
-from builtins import int
+
+
+# This is a hack to allow partialmethod on py2
 try:
     from functools import partialmethod
 except:
@@ -16,11 +22,16 @@ except:
                 return self
             return partial(self.func, instance,
                            *(self.args or ()), **(self.keywords or {}))
+
+# Make input() work the same 
 try:
     input = raw_input
 except NameError:
     pass
+
+#
 # END py2 compatibility cruft
+#
 
 import requests
 import logging
@@ -30,10 +41,17 @@ import sys
 from http.cookiejar import LWPCookieJar
 import os
 from functools import partial
+from datetime import datetime
+from urllib.parse import quote
 
-# FIXME, this should go away once we figure out how to get the
-# certificate to validate
-#requests.packages.urllib3.disable_warnings()
+def sfmt(num, suffix='B'):
+    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f%s%s" % (num, 'Yi', suffix)
+
+quiet = requests.packages.urllib3.disable_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +67,7 @@ class IsiApiError(ValueError):
 class IsiClient(object):
     # Bare bones Isilon RESTful client designed for utter simplicity
 
-    def __init__(self, server=None, username='', password='', port=8080, verify=None, config=None):
+    def __init__(self, server=None, username='', password='', port=8080, verify=True, config=None):
         self._cookiejar_path = os.path.expanduser('~/.isilon_cookiejar')
         self._s = requests.Session()
         self._s.cookies = LWPCookieJar()
@@ -57,84 +75,26 @@ class IsiClient(object):
             self._s.cookies.load(self._cookiejar_path, ignore_discard=True, ignore_expires=True)
         except:
             logger.warning("Could not load cookies from %s", self._cookiejar_path)
-        self._server = server
-        self._username = username
-        self._password = password
-        self._port = port
+        self.server = server
+        self.username = username
+        self.password = password
+        self.port = port
         self._s.verify = verify
         self.ready = False
         # if we have cookies make an attempt to login
         logger.debug("Attempting to use cached credentials")
-        length = self.session()
-        if not self.ready:
+        try:
+            length = self.session()
+        except:
             # still not ready? let's make a blind attempt to login
             try:
                 self.create_session()
             except:
                 pass
 
-    @property
-    def server(self):
-        # Servername for Isilon
-        return self._server
-
-    @server.setter
-    def server(self, value):
-        if value != self._server:
-            self._server = value
-            self.ready = False
-
-    @property
-    def port(self):
-        # Portnumber for isilon, defaults to 8080
-        return self._port
-
-    @port.setter
-    def port(self, value):
-        if self._port != value:
-            self._port = value
-            self.ready = False
-
-    @property
-    def username(self):
-        # username for restful session
-        return self._username
-
-    @username.setter
-    def username(self, value):
-        if self._username != value:
-            self._username = value
-            self.ready = False
-
-    @property
-    def password(self):
-        # password for connection ( getter returns dummy info )
-        if self._password:
-            return "*"*len(self._password)
-        else:
-            return "********"
-
-    @password.setter
-    def password(self, value):
-        self._password = value
-        self.ready = False
-
-    @property
-    def verify(self):
-        # Sets requests verify flag, set to False to disable SSL verification of the connection
-        return self._s.verify
-
-    @verify.setter
-    def verify(self,value):
-        if self._s.verify != value:
-            if verify == False:
-                logger.warning("Connection to %s:%i proceeding without SSL verification", server, port)
-            self._s.verify = value
-            self.ready = False
-
     def session(self):
         # returns the time remaining in the session
-        try:
+        try:    
             out = self.get('session/1/session')
             data = out.json()
             self.username = data['username']
@@ -145,14 +105,14 @@ class IsiClient(object):
                 self._s.cookies.save(self._cookiejar_path, ignore_discard=True, ignore_expires=True)
                 return length
         except:
-            pass
-        return None
+            # Fallthough for errors
+            return None
 
     def create_session(self):
         # attempts to authenticate with session module
-        if self.username == '' or self._password == '':
+        if self.username == '' or self.password == '':
             raise ValueError("Can't login without credentials")
-        login = { 'username': self.username, 'password': self._password, 'services': ['platform', 'namespace'] }
+        login = { 'username': self.username, 'password': self.password, 'services': ['platform', 'namespace'] }
         try:
             self.post('session/1/session', json=login)
             self.ready = True
@@ -163,7 +123,7 @@ class IsiClient(object):
 
     def __repr__(self):
         if self._s.auth:
-            auth = "with auth of {}/{}".format(self.username, self.password)
+            auth = "with auth of {}/{}".format(self.username, "*"*len(self.password))
         else:
             auth = "NO AUTHENTICATION TOKEN"
         return "IsiClient-https://{}:{} {}".format(self.server, self.port, auth) 
@@ -194,8 +154,8 @@ class IsiClient(object):
         return self.create_session()
 
     def request(self, method, endpoint, x_append_prefix=True, raise_on_error=True, json=None, stream=False, **params):
-        # Perform a RESTful method on the Isilon
-        #
+        ''' Perform a RESTful method on the Isilon '''
+
         if x_append_prefix:
             url = 'https://{}:{}/{}'.format(self.server, self.port, endpoint)
         else:
@@ -238,8 +198,8 @@ class IsiClient(object):
         return None
 
     def iter_out(self, out, tag=None):
-        # Page through the results on the named tag
-        # attempt to guess the fag if not give
+        ''' Page through the results on the named tag
+            attempt to guess the fag if not give '''
         data = out.json()
 
         if not tag:
@@ -253,30 +213,30 @@ class IsiClient(object):
         # Page through results yielding the tag
         # this should be yield from but that's not py2 safe
         for page in self.page_out(out):
+            # python3 only, so unwind it
             # yield from page.json()[tag]
             for item in page.json()[tag]:
                 yield item
 
     def page_out(self, out):
-        # helper to page results that have a resume entity
+        ''' helper to page results that have a resume entity '''
         yield out
         resume = IsiClient.get_resume_id(out)
+        url = out.url
         while resume:
-            out = self.get(out.url, x_append_prefix=False, resume=resume)
+            out = self.get(url, x_append_prefix=False, resume=resume)
             yield out
             resume = IsiClient.get_resume_id(out)
    
 
-class PAPIClient:
+class PapiClient(object):
 
     def __init__(self, client):
         self.client = client
-        self.function_lookup = {}
         self.papi_autoscan()
 
     def papi_autoscan(self):
         try:
-            #self.endpoints = list(self.get('', raw=True, describe='', list='', json='').fetchall())
             self.endpoints = list(self.client.get('platform', describe='', list='', json='').iter_json())
             self.papi_version = max( version for _, version, _ in (x.split('/',2) for x in self.endpoints) )
             self.cluster_config = self.get('cluster/config').json()
@@ -290,10 +250,114 @@ class PAPIClient:
         version = version if version else self.papi_version
         if not isinstance(endpoint, list):
             endpoint = [endpoint]
-        return self.client.request(method,'/'.join(['platform', str(version)]+endpoint).format(*map(str,vars)), **params)
+        return self.client.request(method,quote('/'.join(['platform', str(version)]+endpoint).format(*map(str,vars))), **params)
 
     get = partialmethod(call, 'GET')
     head = partialmethod(call, 'HEAD')
     post = partialmethod(call, 'POST')
     delete = partialmethod(call, 'DELETE')
 
+from tarfile import filemode
+
+convert_to_int = set('size,block_size,mtime_val,atime_val,ctime_val,btime_val,uid,gid,id,nlink'.split(','))
+convert_to_time = set('mtime_val,atime_val,ctime_val,btime_val'.split(','))
+type_to_flag = { 'container': 0o0040000, 'object': 0o0100000, 
+    'pipe': 0o0010000, 'character_device': 0o0020000, 
+    'block_device': 0o0060000, 'symbolic_link': 0o0120000, 
+    'socket': 0o0140000, 'whiteout_file': 0 }
+detail_all = 'name,owner,group,type,mode,size,block_size,mtime_val,atime_val,ctime_val,btime_val,uid,gid,id,nlink'
+lsfmt = '{mode_str} {owner:8} {group:8} {hsize:8} {mtime_val} {name}' 
+
+def expand_dirent(entry):
+    for key in convert_to_int:
+        if key in entry:
+            entry[key] = int(entry[key])
+    for key in convert_to_time:
+        if key in entry:
+            entry[key] = datetime.fromtimestamp(entry[key])
+    if 'size' in entry:
+        entry['hsize'] = sfmt(entry['size'])
+    if 'mode' in entry:
+        entry['mode'] = int(entry['mode'],8)
+        try:
+            entry['mode'] = entry['mode'] | type_to_flag[entry['type']]
+        except:
+            pass
+        entry['mode_str'] = filemode(entry['mode'])
+
+
+class NsClient(object):
+
+    def __init__(self, client, prefix):
+        self.client = client
+        self.prefix = prefix
+
+    def call(self, method, path, **params):
+        # call the papi
+        return self.client.request(method,quote('/'.join(['namespace', self.prefix, path])), **params)
+
+    get = partialmethod(call, 'GET')
+    head = partialmethod(call, 'HEAD')
+    post = partialmethod(call, 'POST')
+    delete = partialmethod(call, 'DELETE')
+
+    def scandir(self, path='',
+                detail=['name','owner','group',
+                        'type','mode','size','block_size',
+                        'mtime_val','atime_val','ctime_val',
+                        'btime_val','uid','gid','id','nlink']):
+        ''' iterate over a directory.
+            workalike to os.scandir '''
+        out = self.get(path, detail=','.join(detail))
+        if out.headers['x-isi-ifs-target-type'] != 'container':
+            raise ValueError("NOT DIRECTORY: {}".format(path))
+        # py2 compatibility since no yield from
+        for item in out.iter_json():
+            yield item
+            
+    def walk(self, top, topdown=True, **scandir_options):
+        ''' walk the directory tree
+            workalike to os.walk '''
+        dir_stack = [top]
+        while dir_stack:
+            cur = dir_stack.pop(0)
+            dirs = []
+            files = []
+            for item in self.scandir(cur, **scandir_options):
+                if 'type' in item and item['type'] == 'container':
+                    dirs.append(item)
+                else:
+                    files.append(item)
+            yield cur, dirs, files
+            for item in dirs:
+                dir_stack.append(os.path.join(cur, item['name']))
+        
+    def ls(self, path, recursive=False):
+        path_stack = [path]
+        while path_stack:
+            cur_path = path_stack.pop(0)
+            print(cur_path)
+            out = self.get(cur_path, detail=detail_all)
+            if out.headers['x-isi-ifs-target-type'] != 'container':
+                raise ValueError("NOT DIRECTORY: {}".format(cur_path))
+            for entry in out.iter_json():
+                expand_dirent(entry)
+                if recursive and entry['type'] == 'container':
+                    print('1')
+                    path_stack.append(os.path.join(cur_path, entry['name']))
+                yield entry
+
+    def ll(self, path):
+        for entry in self.scandir(path):
+            expand_dirent(entry)
+            print(lsfmt.format(**entry))
+
+    def llr(self, top):
+        for path, dirs, files in self.walk(top):
+            print("DIR: ", path)
+            for entry in dirs:
+                expand_dirent(entry)
+                print(lsfmt.format(**entry))
+            for entry in files:
+                expand_dirent(entry)
+                print(lsfmt.format(**entry))

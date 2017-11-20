@@ -1,4 +1,4 @@
-from . import IsiClient, PAPIClient
+from . import IsiClient, PapiClient, quiet
 from json import dumps
 import sys
 import argparse
@@ -23,7 +23,10 @@ config = {
         'port': 8080,
         'username': '',
         'password': '',
-        'verify': None }
+        'verify': True }
+
+# disable SSL verification warnings
+quiet()
 
 def main():
     # arguments
@@ -31,7 +34,7 @@ def main():
     parser.add_argument("--raw", help="Pass json through, no resume support", action='store_true')
     parser.add_argument('--verbose', '-v', action='count')
     parser.add_argument("--server", help="server name")
-    parser.add_argument("--noverify", help="Turn off SSL verification", action='store_false', default=None)
+    parser.add_argument("--noverify", help="Turn off SSL verification", action='store_false', default=True)
     parser.add_argument("--tag", help="Parse and return tag from results with resume support")
     parser.add_argument("endpoint", help="PAPI endpoint")
     parser.add_argument("paramaters", nargs="*", help="endpoint paramters")
@@ -66,7 +69,7 @@ def main():
     client = IsiClient(**config)
     client.auth()
 
-    papi = PAPIClient(client)
+    papi = PapiClient(client)
 
     # Munge paramaters into a dict
     params = dict(map(lambda x: x + [''] * (2 - len(x)), (x.split("=",1) for x in args.paramaters)))
