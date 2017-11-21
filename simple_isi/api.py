@@ -42,7 +42,7 @@ import logging
 from types import MethodType
 from getpass import getpass, getuser
 import sys
-from http.cookiejar import LWPCookieJar
+from http.cookiejar import LWPCookieJar as fcj
 import os
 from functools import partial
 from datetime import datetime
@@ -61,6 +61,7 @@ quiet = requests.packages.urllib3.disable_warnings
 logger = logging.getLogger(__name__)
 
 class IsiApiError(ValueError):
+    ''' Wapper around Isilon errors which attempts to pull the error from the json if possible '''
     def __init__(self, out):
         self.request_response = out
         try:
@@ -70,12 +71,13 @@ class IsiApiError(ValueError):
             ValueError.__init__(self, "URL: {} status code {}".format(out.url, out.status_code))
 
 class IsiClient(object):
-    # Bare bones Isilon RESTful client designed for utter simplicity
+    ''' Bare bones Isilon RESTful client designed for utter simplicity '''
 
     def __init__(self, server=None, username='', password='', port=8080, verify=True):
         self._cookiejar_path = os.path.expanduser('~/.isilon_cookiejar')
         self._s = requests.Session()
-        self._s.cookies = LWPCookieJar()
+        self._s.headers['User-Agent'] = 'simple-isi library based on requests'
+        self._s.cookies = fcj()
         try:
             self._s.cookies.load(self._cookiejar_path, ignore_discard=True, ignore_expires=True)
         except:
@@ -87,15 +89,18 @@ class IsiClient(object):
         self._s.verify = verify
         # if we have cookies make an attempt to login
         logger.debug("Attempting to use cached credentials")
-        self._expires = time.time() + self.refresh_session()
+        #self._expires = time.time() + self.refresh_session()
+        self._expires = -1
+        self.is_ready(prompt=False, force=True)
 
-    def is_ready(self, auto_refresh=600, prompt=True):
+    def is_ready(self, auto_refresh=600, prompt=True, force=False):
         expires_in = self._expires - time.time()
         # good session
         if expires_in >= auto_refresh:
             return True
-        # will expire in less than auto_refresh, refresh
-        if expires_in > 0 and expires_in < auto_refresh:
+        # will expire in less than auto_refresh or forced
+        # from a unknown state
+        if force or (expires_in > 0 and expires_in < auto_refresh):
             self._expires = time.time() + self.refresh_session()
             return True
         # try to create a new session, will work if username and
@@ -239,9 +244,13 @@ class IsiClient(object):
 
     def page_out(self, out):
         ''' helper to page results that have a resume entity '''
+
+        # Return the input
         yield out
         resume = IsiClient.get_resume_id(out)
         url = out.url
+        # While the input containes a resume token keep refreshing it
+        # via additional get calls
         while resume:
             out = self.get(url, x_append_prefix=False, resume=resume)
             yield out
@@ -249,6 +258,8 @@ class IsiClient(object):
    
 
 class PapiClient(object):
+    ''' Basic PAPI client which will allow you to query 
+        api endpoints in an effecient manner '''
 
     def __init__(self, client):
         self.client = client
@@ -306,6 +317,8 @@ def expand_dirent(entry):
 
 
 class NsClient(object):
+    ''' Basic namespace client takes an IsiClient and the namespace
+        prefix as setup '''
 
     def __init__(self, client, prefix):
         self.client = client
@@ -350,28 +363,15 @@ class NsClient(object):
             yield cur, dirs, files
             for item in dirs:
                 dir_stack.append(os.path.join(cur, item['name']))
-        
-    def ls(self, path, recursive=False):
-        path_stack = [path]
-        while path_stack:
-            cur_path = path_stack.pop(0)
-            print(cur_path)
-            out = self.get(cur_path, detail=detail_all)
-            if out.headers['x-isi-ifs-target-type'] != 'container':
-                raise ValueError("NOT DIRECTORY: {}".format(cur_path))
-            for entry in out.iter_json():
-                expand_dirent(entry)
-                if recursive and entry['type'] == 'container':
-                    print('1')
-                    path_stack.append(os.path.join(cur_path, entry['name']))
-                yield entry
 
     def ll(self, path):
+        ''' list a single directory '''
         for entry in self.scandir(path):
             expand_dirent(entry)
             print(lsfmt.format(**entry))
 
     def llr(self, top):
+        ''' list a directory recursively '''
         for path, dirs, files in self.walk(top):
             print("DIR: ", path)
             for entry in dirs:
