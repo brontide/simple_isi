@@ -12,7 +12,7 @@ from __future__ import print_function
 # This is a hack to allow partialmethod on py2
 try:
     from functools import partialmethod
-except:
+except BaseException:
     # python 2 hack https://gist.github.com/carymrobbins/8940382
     from functools import partial
 
@@ -23,7 +23,7 @@ except:
             return partial(self.func, instance,
                            *(self.args or ()), **(self.keywords or {}))
 
-# Make input() work the same 
+# Make input() work the same
 try:
     input = raw_input
 except NameError:
@@ -50,41 +50,60 @@ from urllib.parse import quote
 import time
 from tarfile import filemode
 
+
 def sfmt(num, suffix='B'):
-    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
         if abs(num) < 1024.0:
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
+
 quiet = requests.packages.urllib3.disable_warnings
 
 logger = logging.getLogger(__name__)
 
+
 class IsiApiError(ValueError):
     ''' Wapper around Isilon errors which attempts to pull the error from the json if possible '''
+
     def __init__(self, out):
         self.request_response = out
         try:
             data = out.json()
-            ValueError.__init__(self, "Error {}/{} when connecting to url {}".format(data['errors'][0]['code'], data['errors'][0]['message'], out.url))
-        except:
-            ValueError.__init__(self, "URL: {} status code {}".format(out.url, out.status_code))
+            ValueError.__init__(self, "Error {}/{} when connecting to url {}".format(
+                data['errors'][0]['code'], data['errors'][0]['message'], out.url))
+        except BaseException:
+            ValueError.__init__(
+                self, "URL: {} status code {}".format(
+                    out.url, out.status_code))
+
 
 class IsiClient(object):
     ''' Bare bones Isilon RESTful client designed for utter simplicity '''
 
-    def __init__(self, server=None, username='', password='', port=8080, verify=True):
+    def __init__(
+            self,
+            server=None,
+            username='',
+            password='',
+            port=8080,
+            verify=True):
         self._cookiejar_path = os.path.expanduser('~/.isilon_cookiejar')
         self._s = requests.Session()
-        # Set a fixed user-agent since the isisessid is only valid for the current 
+        # Set a fixed user-agent since the isisessid is only valid for the current
         # user-agent
         self._s.headers['User-Agent'] = 'simple-isi library based on requests'
         self._s.cookies = fcj()
         try:
-            self._s.cookies.load(self._cookiejar_path, ignore_discard=True, ignore_expires=True)
-        except:
-            logger.warning("Could not load cookies from %s", self._cookiejar_path)
+            self._s.cookies.load(
+                self._cookiejar_path,
+                ignore_discard=True,
+                ignore_expires=True)
+        except BaseException:
+            logger.warning(
+                "Could not load cookies from %s",
+                self._cookiejar_path)
         self.server = server
         self.username = username
         self.password = password
@@ -111,30 +130,33 @@ class IsiClient(object):
         try:
             self._expires = time.time() + self.create_session()
             return True
-        except:
+        except BaseException:
             pass
-        # Must query 
+        # Must query
         if not prompt:
             return False
         try:
             self._expires = time.time() + self.auth()
             return True
-        except:
+        except BaseException:
             pass
-        return False 
+        return False
 
     def refresh_session(self):
         # returns the time remaining in the session
-        try:    
+        try:
             out = self.get('session/1/session', ready_check=False)
             data = out.json()
             self.username = data['username']
             length = min(data["timeout_absolute"], data["timeout_inactive"])
             if length > 60:
                 # good senssion
-                self._s.cookies.save(self._cookiejar_path, ignore_discard=True, ignore_expires=True)
+                self._s.cookies.save(
+                    self._cookiejar_path,
+                    ignore_discard=True,
+                    ignore_expires=True)
                 return length
-        except:
+        except BaseException:
             # Fallthough for errors
             return -1
 
@@ -142,32 +164,45 @@ class IsiClient(object):
         # attempts to authenticate with session module
         if self.username == '' or self.password == '':
             raise ValueError("Can't login without credentials")
-        login = { 'username': self.username, 'password': self.password, 'services': ['platform', 'namespace'] }
+        login = {
+            'username': self.username,
+            'password': self.password,
+            'services': [
+                'platform',
+                'namespace']}
         try:
             self.post('session/1/session', json=login, ready_check=False)
             self.ready = True
-        except:
+        except BaseException:
             logger.debug("Login failure")
         return self.refresh_session()
-        
 
     def __repr__(self):
         if self._s.auth:
-            auth = "with auth of {}/{}".format(self.username, "*"*len(self.password))
+            auth = "with auth of {}/{}".format(self.username,
+                                               "*" * len(self.password))
         else:
             auth = "NO AUTHENTICATION TOKEN"
-        return "IsiClient-https://{}:{} {}".format(self.server, self.port, auth) 
+        return "IsiClient-https://{}:{} {}".format(
+            self.server, self.port, auth)
 
     def auth(self):
         # Query for interactive credentials
 
         # only works for ttys
         if not sys.stdin.isatty():
-            logger.warning("Session not ready and no interactive credentials, this will probably fail")
+            logger.warning(
+                "Session not ready and no interactive credentials, this will probably fail")
         #    return None
 
         # Start interactive login
-        print("Please enter credentials for Isilon https://{}:{}\nUsername (CR={}): ".format(self.server, self.port, getuser()), file=sys.stderr, end='')
+        print(
+            "Please enter credentials for Isilon https://{}:{}\nUsername (CR={}): ".format(
+                self.server,
+                self.port,
+                getuser()),
+            file=sys.stderr,
+            end='')
         username = input()
         if username == "":
             username = getuser()
@@ -178,24 +213,40 @@ class IsiClient(object):
 
         return self.create_session()
 
-    def request(self, method, endpoint, x_append_prefix=True, raise_on_error=True, ready_check=True, json=None, stream=False, **params):
+    def request(
+            self,
+            method,
+            endpoint,
+            x_append_prefix=True,
+            raise_on_error=True,
+            ready_check=True,
+            json=None,
+            stream=False,
+            **params):
         ''' Perform a RESTful method on the Isilon '''
         if ready_check and not self.is_ready():
             logger.warning("Unauthenticates REST call, will probably fail")
 
         if x_append_prefix:
-            url = 'https://{}:{}/{}'.format(self.server, self.port, quote(endpoint))
+            url = 'https://{}:{}/{}'.format(self.server,
+                                            self.port, quote(endpoint))
         else:
             url = endpoint
         logger.debug("%s %s <- %s", method, url, repr(json)[:20])
-        out = self._s.request(method, url, json=json, stream=stream, params=params)
+        out = self._s.request(
+            method,
+            url,
+            json=json,
+            stream=stream,
+            params=params)
         # monkeypatch for iterating over the Isilon data
         out.iter_json = partial(self.iter_out, out)
-        logger.debug("Results from %s status %i preview %s", out.url, out.status_code, out.text[:20])
+        logger.debug("Results from %s status %i preview %s",
+                     out.url, out.status_code, out.text[:20])
         if raise_on_error and out.status_code != requests.codes.ok:
             raise IsiApiError(out)
         return out
-    
+
     # Primary calls are just wrappers around request
     get = partialmethod(request, 'GET')
     head = partialmethod(request, 'HEAD')
@@ -206,7 +257,7 @@ class IsiClient(object):
     def get_resume_id(out):
         try:
             return out.json()['resume']
-        except:
+        except BaseException:
             return None
 
     @staticmethod
@@ -214,7 +265,7 @@ class IsiClient(object):
         ''' Find the collection in the json '''
         if 'resume' in data:
             for key, value in data.items():
-                if isinstance( value, list ):
+                if isinstance(value, list):
                     return key
         if 'directory' in data:
             return 'directory'
@@ -252,8 +303,8 @@ class IsiClient(object):
         yield out
         resume = IsiClient.get_resume_id(out)
         try:
-            url = out.url.split('?',1)[0]
-        except:
+            url = out.url.split('?', 1)[0]
+        except BaseException:
             url = out.url
         # While the input containes a resume token keep refreshing it
         # via additional get calls
@@ -261,10 +312,10 @@ class IsiClient(object):
             out = self.get(url, x_append_prefix=False, resume=resume)
             yield out
             resume = IsiClient.get_resume_id(out)
-   
+
 
 class PapiClient(object):
-    ''' Basic PAPI client which will allow you to query 
+    ''' Basic PAPI client which will allow you to query
         api endpoints in an effecient manner '''
 
     def __init__(self, client):
@@ -273,20 +324,30 @@ class PapiClient(object):
 
     def papi_autoscan(self):
         try:
-            self.endpoints = list(self.client.get('platform', describe='', list='', json='').iter_json())
-            self.papi_version = max( version for _, version, _ in (x.split('/',2) for x in self.endpoints) )
+            self.endpoints = list(
+                self.client.get(
+                    'platform',
+                    describe='',
+                    list='',
+                    json='').iter_json())
+            self.papi_version = max(
+                version for _, version, _ in (
+                    x.split(
+                        '/', 2) for x in self.endpoints))
             self.cluster_config = self.get('cluster/config').json()
-            logger.info("Connected to PAPI backed with version %i", int(self.papi_version))
-        except:
+            logger.info(
+                "Connected to PAPI backed with version %i", int(
+                    self.papi_version))
+        except BaseException:
             logger.exception("Unable to connect to PAPI")
-
 
     def call(self, method, endpoint, version=None, *vars, **params):
         # call the papi
         version = version if version else self.papi_version
         if not isinstance(endpoint, list):
             endpoint = [endpoint]
-        return self.client.request(method,'/'.join(['platform', str(version)]+endpoint).format(*map(str,vars)), **params)
+        return self.client.request(
+            method, '/'.join(['platform', str(version)] + endpoint).format(*map(str, vars)), **params)
 
     get = partialmethod(call, 'GET')
     head = partialmethod(call, 'HEAD')
@@ -294,8 +355,7 @@ class PapiClient(object):
     delete = partialmethod(call, 'DELETE')
 
 
-detail_all = 'name,owner,group,type,mode,size,block_size,mtime_val,atime_val,ctime_val,btime_val,uid,gid,id,nlink'
-lsfmt = '{mode_str} {owner:8} {group:8} {hsize:8} {mtime_val} {name}' 
+lsfmt = '{mode_str} {owner:8} {group:8} {hsize:8} {mtime_val} {name}'
 
 
 class NsClient(object):
@@ -308,7 +368,8 @@ class NsClient(object):
 
     def call(self, method, path, **params):
         # call the papi
-        return self.client.request(method,'/'.join(['namespace', self.prefix, path]), **params)
+        return self.client.request(
+            method, '/'.join(['namespace', self.prefix, path]), **params)
 
     get = partialmethod(call, 'GET')
     head = partialmethod(call, 'HEAD')
@@ -316,10 +377,10 @@ class NsClient(object):
     delete = partialmethod(call, 'DELETE')
 
     def scandir(self, path='',
-                detail=['name','owner','group',
-                        'type','mode','size','block_size',
-                        'mtime_val','atime_val','ctime_val',
-                        'btime_val','uid','gid','id','nlink']):
+                detail=['name', 'owner', 'group',
+                        'type', 'mode', 'size', 'block_size',
+                        'mtime_val', 'atime_val', 'ctime_val',
+                        'btime_val', 'uid', 'gid', 'id', 'nlink']):
         ''' iterate over a directory.
             workalike to os.scandir '''
         out = self.get(path, detail=','.join(detail))
@@ -328,7 +389,7 @@ class NsClient(object):
         # py2 compatibility since no yield from
         for item in out.iter_json():
             yield item
-            
+
     def walk(self, top, topdown=True, **scandir_options):
         ''' walk the directory tree
             workalike to os.walk '''
@@ -349,12 +410,30 @@ class NsClient(object):
     @staticmethod
     def expand_dirent(entry):
         ''' Utility function to interpret the json values as python where approprate '''
-        convert_to_int = set('size,block_size,mtime_val,atime_val,ctime_val,btime_val,uid,gid,id,nlink'.split(','))
-        convert_to_time = set('mtime_val,atime_val,ctime_val,btime_val'.split(','))
-        type_to_flag = { 'container': 0o0040000, 'object': 0o0100000, 
-            'pipe': 0o0010000, 'character_device': 0o0020000, 
-            'block_device': 0o0060000, 'symbolic_link': 0o0120000, 
-            'socket': 0o0140000, 'whiteout_file': 0 }
+
+        # these should be int() converted
+        convert_to_int = set(
+            'size',
+            'block_size',
+            'mtime_val',
+            'atime_val',
+            'ctime_val',
+            'btime_val',
+            'uid',
+            'gid',
+            'id',
+            'nlink')
+        # there should be fromtimestamp() converted
+        convert_to_time = set(
+            'mtime_val',
+            'atime_val',
+            'ctime_val',
+            'btime_val')
+        # this is the mapping of type to mode
+        type_to_flag = {'container': 0o0040000, 'object': 0o0100000,
+                        'pipe': 0o0010000, 'character_device': 0o0020000,
+                        'block_device': 0o0060000, 'symbolic_link': 0o0120000,
+                        'socket': 0o0140000, 'whiteout_file': 0}
         for key in convert_to_int:
             if key in entry:
                 entry[key] = int(entry[key])
@@ -364,13 +443,12 @@ class NsClient(object):
         if 'size' in entry:
             entry['hsize'] = sfmt(entry['size'])
         if 'mode' in entry:
-            entry['mode'] = int(entry['mode'],8)
+            entry['mode'] = int(entry['mode'], 8)
             try:
                 entry['mode'] = entry['mode'] | type_to_flag[entry['type']]
-            except:
+            except BaseException:
                 pass
             entry['mode_str'] = filemode(entry['mode'])
-
 
     def ll(self, path):
         ''' list a single directory '''
