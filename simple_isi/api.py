@@ -48,6 +48,7 @@ from functools import partial
 from datetime import datetime
 from urllib.parse import quote
 import time
+from tarfile import filemode
 
 def sfmt(num, suffix='B'):
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
@@ -289,33 +290,9 @@ class PapiClient(object):
     post = partialmethod(call, 'POST')
     delete = partialmethod(call, 'DELETE')
 
-from tarfile import filemode
 
-convert_to_int = set('size,block_size,mtime_val,atime_val,ctime_val,btime_val,uid,gid,id,nlink'.split(','))
-convert_to_time = set('mtime_val,atime_val,ctime_val,btime_val'.split(','))
-type_to_flag = { 'container': 0o0040000, 'object': 0o0100000, 
-    'pipe': 0o0010000, 'character_device': 0o0020000, 
-    'block_device': 0o0060000, 'symbolic_link': 0o0120000, 
-    'socket': 0o0140000, 'whiteout_file': 0 }
 detail_all = 'name,owner,group,type,mode,size,block_size,mtime_val,atime_val,ctime_val,btime_val,uid,gid,id,nlink'
 lsfmt = '{mode_str} {owner:8} {group:8} {hsize:8} {mtime_val} {name}' 
-
-def expand_dirent(entry):
-    for key in convert_to_int:
-        if key in entry:
-            entry[key] = int(entry[key])
-    for key in convert_to_time:
-        if key in entry:
-            entry[key] = datetime.fromtimestamp(entry[key])
-    if 'size' in entry:
-        entry['hsize'] = sfmt(entry['size'])
-    if 'mode' in entry:
-        entry['mode'] = int(entry['mode'],8)
-        try:
-            entry['mode'] = entry['mode'] | type_to_flag[entry['type']]
-        except:
-            pass
-        entry['mode_str'] = filemode(entry['mode'])
 
 
 class NsClient(object):
@@ -366,10 +343,36 @@ class NsClient(object):
             for item in dirs:
                 dir_stack.append(os.path.join(cur, item['name']))
 
+    @staticmethod
+    def expand_dirent(entry):
+        ''' Utility function to interpret the json values as python where approprate '''
+        convert_to_int = set('size,block_size,mtime_val,atime_val,ctime_val,btime_val,uid,gid,id,nlink'.split(','))
+        convert_to_time = set('mtime_val,atime_val,ctime_val,btime_val'.split(','))
+        type_to_flag = { 'container': 0o0040000, 'object': 0o0100000, 
+            'pipe': 0o0010000, 'character_device': 0o0020000, 
+            'block_device': 0o0060000, 'symbolic_link': 0o0120000, 
+            'socket': 0o0140000, 'whiteout_file': 0 }
+        for key in convert_to_int:
+            if key in entry:
+                entry[key] = int(entry[key])
+        for key in convert_to_time:
+            if key in entry:
+                entry[key] = datetime.fromtimestamp(entry[key])
+        if 'size' in entry:
+            entry['hsize'] = sfmt(entry['size'])
+        if 'mode' in entry:
+            entry['mode'] = int(entry['mode'],8)
+            try:
+                entry['mode'] = entry['mode'] | type_to_flag[entry['type']]
+            except:
+                pass
+            entry['mode_str'] = filemode(entry['mode'])
+
+
     def ll(self, path):
         ''' list a single directory '''
         for entry in self.scandir(path):
-            expand_dirent(entry)
+            NsClient.expand_dirent(entry)
             print(lsfmt.format(**entry))
 
     def llr(self, top):
@@ -377,8 +380,8 @@ class NsClient(object):
         for path, dirs, files in self.walk(top):
             print("DIR: ", path)
             for entry in dirs:
-                expand_dirent(entry)
+                NsClient.expand_dirent(entry)
                 print(lsfmt.format(**entry))
             for entry in files:
-                expand_dirent(entry)
+                NsClient.expand_dirent(entry)
                 print(lsfmt.format(**entry))
