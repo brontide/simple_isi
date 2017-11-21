@@ -39,7 +39,6 @@ install_aliases()
 
 import requests
 import logging
-from types import MethodType
 from getpass import getpass, getuser
 import sys
 from http.cookiejar import LWPCookieJar as fcj
