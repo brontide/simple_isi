@@ -251,7 +251,10 @@ class IsiClient(object):
         # Return the input
         yield out
         resume = IsiClient.get_resume_id(out)
-        url = out.url
+        try:
+            url = out.url.split('?',1)[0]
+        except:
+            url = out.url
         # While the input containes a resume token keep refreshing it
         # via additional get calls
         while resume:
