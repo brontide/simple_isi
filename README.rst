@@ -12,7 +12,7 @@ isicmd - command line
 
 ::
 
-    pip3 install simple_isi
+    pip install simple_isi
 
 1. Create a isilon.yaml in the cwd or ~/.isilon_yaml with your isilon host settings
 2. (OPTIONAL) Install jq for more advanced post processing
@@ -22,7 +22,7 @@ That's it.
 .. code-block:: console
 
     $ isicmd -h
-    usage: isicmd [-h] [--raw] [--verbose] [--server SERVER] [--tag TAG]
+    usage: isicmd [-h] [--raw] [--verbose] [--server SERVER] [--noverify]
                   endpoint [paramaters [paramaters ...]]
 
                   positional arguments:
@@ -35,7 +35,6 @@ That's it.
                   --verbose, -v
                   --server SERVER  server name
                   --noverify       Turn off SSL verification
-                  --tag TAG        Parse and return tag from results with resume support
 
 
 Some examples of the isicmd::
