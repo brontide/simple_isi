@@ -31,6 +31,7 @@ quiet()
 def main():
     # arguments
     parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", "-p", help="Profile from config file if not default", default='default')
     parser.add_argument("--raw", help="Pass json through, no resume support", action='store_true')
     parser.add_argument('--verbose', '-v', action='count')
     parser.add_argument("--server", help="server name")
@@ -43,7 +44,7 @@ def main():
     # merge in saved defaults
     for filename in ('isilon.yaml', os.path.join(os.path.expanduser('~'),'.isilon_yaml')):
         try:
-            config.update(yaml.safe_load(open(filename)))
+            config.update(yaml.safe_load(open(filename))[args.profile])
         except:
             pass
 

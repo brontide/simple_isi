@@ -29,6 +29,10 @@ try:
 except NameError:
     pass
 
+# urllib
+from future.standard_library import install_aliases
+install_aliases()
+
 #
 # END py2 compatibility cruft
 #
@@ -43,6 +47,7 @@ import os
 from functools import partial
 from datetime import datetime
 from urllib.parse import quote
+import time
 
 def sfmt(num, suffix='B'):
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
@@ -67,7 +72,7 @@ class IsiApiError(ValueError):
 class IsiClient(object):
     # Bare bones Isilon RESTful client designed for utter simplicity
 
-    def __init__(self, server=None, username='', password='', port=8080, verify=True, config=None):
+    def __init__(self, server=None, username='', password='', port=8080, verify=True):
         self._cookiejar_path = os.path.expanduser('~/.isilon_cookiejar')
         self._s = requests.Session()
         self._s.cookies = LWPCookieJar()
@@ -80,33 +85,50 @@ class IsiClient(object):
         self.password = password
         self.port = port
         self._s.verify = verify
-        self.ready = False
         # if we have cookies make an attempt to login
         logger.debug("Attempting to use cached credentials")
-        try:
-            length = self.session()
-        except:
-            # still not ready? let's make a blind attempt to login
-            try:
-                self.create_session()
-            except:
-                pass
+        self._expires = time.time() + self.refresh_session()
 
-    def session(self):
+    def is_ready(self, auto_refresh=600, prompt=True):
+        expires_in = self._expires - time.time()
+        # good session
+        if expires_in >= auto_refresh:
+            return True
+        # will expire in less than auto_refresh, refresh
+        if expires_in > 0 and expires_in < auto_refresh:
+            self._expires = time.time() + self.refresh_session()
+            return True
+        # try to create a new session, will work if username and
+        # password are stored
+        try:
+            self._expires = time.time() + self.create_session()
+            return True
+        except:
+            pass
+        # Must query 
+        if not prompt:
+            return False
+        try:
+            self._expires = time.time() + self.auth()
+            return True
+        except:
+            pass
+        return False 
+
+    def refresh_session(self):
         # returns the time remaining in the session
         try:    
-            out = self.get('session/1/session')
+            out = self.get('session/1/session', ready_check=False)
             data = out.json()
             self.username = data['username']
-            length = max(data["timeout_absolute"], data["timeout_inactive"])
+            length = min(data["timeout_absolute"], data["timeout_inactive"])
             if length > 60:
                 # good senssion
-                self.ready = True
                 self._s.cookies.save(self._cookiejar_path, ignore_discard=True, ignore_expires=True)
                 return length
         except:
             # Fallthough for errors
-            return None
+            return -1
 
     def create_session(self):
         # attempts to authenticate with session module
@@ -114,11 +136,11 @@ class IsiClient(object):
             raise ValueError("Can't login without credentials")
         login = { 'username': self.username, 'password': self.password, 'services': ['platform', 'namespace'] }
         try:
-            self.post('session/1/session', json=login)
+            self.post('session/1/session', json=login, ready_check=False)
             self.ready = True
         except:
             logger.debug("Login failure")
-        return self.session()
+        return self.refresh_session()
         
 
     def __repr__(self):
@@ -130,11 +152,6 @@ class IsiClient(object):
 
     def auth(self):
         # Query for interactive credentials
-        
-        # Are we already authed?
-        length = self.session()
-        if length:
-            return length 
 
         # only works for ttys
         if not sys.stdin.isatty():
@@ -153,11 +170,13 @@ class IsiClient(object):
 
         return self.create_session()
 
-    def request(self, method, endpoint, x_append_prefix=True, raise_on_error=True, json=None, stream=False, **params):
+    def request(self, method, endpoint, x_append_prefix=True, raise_on_error=True, ready_check=True, json=None, stream=False, **params):
         ''' Perform a RESTful method on the Isilon '''
+        if ready_check and not self.is_ready():
+            logger.warning("Unauthenticates REST call, will probably fail")
 
         if x_append_prefix:
-            url = 'https://{}:{}/{}'.format(self.server, self.port, endpoint)
+            url = 'https://{}:{}/{}'.format(self.server, self.port, quote(endpoint))
         else:
             url = endpoint
         logger.debug("%s %s <- %s", method, url, repr(json)[:20])
@@ -250,7 +269,7 @@ class PapiClient(object):
         version = version if version else self.papi_version
         if not isinstance(endpoint, list):
             endpoint = [endpoint]
-        return self.client.request(method,quote('/'.join(['platform', str(version)]+endpoint).format(*map(str,vars))), **params)
+        return self.client.request(method,'/'.join(['platform', str(version)]+endpoint).format(*map(str,vars)), **params)
 
     get = partialmethod(call, 'GET')
     head = partialmethod(call, 'HEAD')
@@ -294,7 +313,7 @@ class NsClient(object):
 
     def call(self, method, path, **params):
         # call the papi
-        return self.client.request(method,quote('/'.join(['namespace', self.prefix, path])), **params)
+        return self.client.request(method,'/'.join(['namespace', self.prefix, path]), **params)
 
     get = partialmethod(call, 'GET')
     head = partialmethod(call, 'HEAD')
