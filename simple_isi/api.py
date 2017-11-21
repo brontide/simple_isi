@@ -76,6 +76,8 @@ class IsiClient(object):
     def __init__(self, server=None, username='', password='', port=8080, verify=True):
         self._cookiejar_path = os.path.expanduser('~/.isilon_cookiejar')
         self._s = requests.Session()
+        # Set a fixed user-agent since the isisessid is only valid for the current 
+        # user-agent
         self._s.headers['User-Agent'] = 'simple-isi library based on requests'
         self._s.cookies = fcj()
         try:

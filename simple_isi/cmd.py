@@ -42,13 +42,14 @@ def main():
     args = parser.parse_args()
 
     # merge in saved defaults
-    for filename in ('isilon.yaml', os.path.join(os.path.expanduser('~'),'.isilon_yaml')):
+    for filename in ('isilon.yaml', os.path.expanduser('~/.isilon_yaml')):
         try:
             config.update(yaml.safe_load(open(filename))[args.profile])
         except:
             pass
 
     # override 
+    logger.debug("%s", repr(config))
     if args.server:
         config['server'] = args.server
 
