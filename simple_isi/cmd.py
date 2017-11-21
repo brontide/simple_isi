@@ -36,7 +36,6 @@ def main():
     parser.add_argument('--verbose', '-v', action='count')
     parser.add_argument("--server", help="server name")
     parser.add_argument("--noverify", help="Turn off SSL verification", action='store_false', default=None)
-    parser.add_argument("--tag", help="Parse and return tag from results with resume support")
     parser.add_argument("endpoint", help="PAPI endpoint")
     parser.add_argument("paramaters", nargs="*", help="endpoint paramters")
     args = parser.parse_args()
@@ -49,28 +48,30 @@ def main():
             pass
 
     # override 
-    logger.debug("%s", repr(config))
     if args.server:
         config['server'] = args.server
 
     if args.verbose:
         logger.setLevel(30-(10*args.verbose))
 
-    # create client
-    if config['username'] != '' and config['password'] != '':
-        auth=(config['username'], config['password'])
-    else:
-        auth=None
-    
     try:
         if args.noverify != None:
             config['verify'] = args.noverify
     except:
         pass
 
-    client = IsiClient(**config)
-    #client.auth()
+    if config['server'] == '':
+        logger.error('''
+Looks like you forgot to setup an .isilon_yaml or specified host on the command line
+the easiest is to create a ~/.isilon_yaml with the following
 
+---
+default:
+  server: YOURHOST
+  
+''')
+        sys.exit(-1)
+    client = IsiClient(**config)
     papi = PapiClient(client)
 
     # Munge paramaters into a dict
