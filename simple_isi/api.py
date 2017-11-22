@@ -117,7 +117,7 @@ class IsiClient(object):
     def is_ready(self, auto_refresh=600, prompt=True, force=False):
         expires_in = self._expires - time.time()
         # good session
-        if expires_in >= auto_refresh:
+        if not force and expires_in >= auto_refresh:
             return True
         # will expire in less than auto_refresh or forced
         # from a unknown state
@@ -175,6 +175,13 @@ class IsiClient(object):
         except BaseException:
             logger.debug("Login failure")
         return self.refresh_session()
+
+    def logout(self):
+        ''' logout of a valid session / destroy cookie and 
+            authentication tokens '''
+        self.password = ''
+        self._expires = -1
+        out = self.delete('session/1/session', ready_check=False, raise_on_error=False)
 
     def __repr__(self):
         if self._s.auth:
