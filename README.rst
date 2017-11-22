@@ -55,7 +55,7 @@ Python usage
     simple_isi.quiet()
 
     # Create a client session and make it ready for actions 
-    client = simple_isi.IsiClient(server='ritstor.rit.albany.edu', verify=False)
+    client = simple_isi.IsiClient(server='your host here', verify=False)
     # Prompt for creds if needed
     client.is_ready()
 
@@ -69,8 +69,8 @@ Python usage
     # Create a NS client and list some directories
     # the ns object has scandir and walk workalikes
     ns = simple_isi.NsClient(client, 'ifs')
-    ns.ll('testing')
-    ns.llr('primary/homes/ew2193/testing')
+    ns.ll('data')
+    ns.llr('home')
 
 
 isicmd - command line
