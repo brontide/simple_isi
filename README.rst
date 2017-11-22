@@ -6,7 +6,7 @@ comprehensibility.  Where possible we do as little as possible to get you talkin
 PAPI on the host.
 
 WHY?
-___
+---
 
 Why would I write this when there is an official sdk?  Because I just needed one thing and
 I felt like the official API was very heavyweight and lacked the finess of that some quick
@@ -15,17 +15,17 @@ a class and that spawned additional features.
 
 **Standout feature**
 
-  - iterators:  A successful call can be iterated over with `.iter_json()` and it will
-    automatically re-call the API if needed
-  - session cookies:  No need to hardcode credentials this utiliy will call for credentials
-    when needed, if needed.  If there is a valid isisessid cookie stashed it will not
-    prompt
-  - structures as dict:  Since we're just iterative over json the values returned are all
-    python dicts for easy manipulation.
-  - Not bound to a particilar version of the platform.  This module should work against any
-    version of the api as long as the endpoints are not signifigantly different.
-  - Python 2/3 compatible:  I'm developing in python 3 and presuming it's not a total hack
-    job I'm patching to make sure it runs on python 2 as well.
+- iterators:  A successful call can be iterated over with `.iter_json()` and it will
+  automatically re-call the API if needed
+- session cookies:  No need to hardcode credentials this utiliy will call for credentials
+  when needed, if needed.  If there is a valid isisessid cookie stashed it will not
+  prompt
+- structures as dict:  Since we're just iterative over json the values returned are all
+  python dicts for easy manipulation.
+- Not bound to a particilar version of the platform.  This module should work against any
+  version of the api as long as the endpoints are not signifigantly different.
+- Python 2/3 compatible:  I'm developing in python 3 and presuming it's not a total hack
+  job I'm patching to make sure it runs on python 2 as well.
 
 
 Python usage
