@@ -10,8 +10,8 @@ PAPI on the host.
 Why would I write this when there is an official sdk?  Because I just needed one thing and
 I felt like the official API was very heavyweight and lacked the finess of that some quick
 python could acheive.  What started as some helper functions that I wrote quickly became
-a class and that spawned additional features.  Rather than code compiled this library just
-does the pyth-esque job of doing what seems right and failing if not possible.
+a class and that spawned additional features.  Rather than code compiled, this library just
+does the python-esque job of doing what seems right and failing if not possible.
 
 **Standout feature**
 
