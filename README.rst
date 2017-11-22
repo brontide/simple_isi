@@ -5,8 +5,7 @@ Both the comand line tool `isicmd` and the libraris are designed for utter simpl
 comprehensibility.  Where possible we do as little as possible to get you talking with the
 PAPI on the host.
 
-WHY?
----
+**WHY?**
 
 Why would I write this when there is an official sdk?  Because I just needed one thing and
 I felt like the official API was very heavyweight and lacked the finess of that some quick
@@ -31,7 +30,8 @@ a class and that spawned additional features.
 Python usage
 ------------
 
-.. code-block::
+.. code-block:: python
+
     from __future__ import print_function
 
     import logging
