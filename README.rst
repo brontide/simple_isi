@@ -10,19 +10,21 @@ PAPI on the host.
 Why would I write this when there is an official sdk?  Because I just needed one thing and
 I felt like the official API was very heavyweight and lacked the finess of that some quick
 python could acheive.  What started as some helper functions that I wrote quickly became
-a class and that spawned additional features. 
+a class and that spawned additional features.  Rather than code compiled this library just
+does the pyth-esque job of doing what seems right and failing if not possible.
 
 **Standout feature**
 
 - iterators:  A successful call can be iterated over with `.iter_json()` and it will
-  automatically re-call the API if needed
+  automatically re-call the API if needed.  No need to handle resume tokens.
 - session cookies:  No need to hardcode credentials this utiliy will call for credentials
   when needed, if needed.  If there is a valid isisessid cookie stashed it will not
   prompt
 - structures as dict:  Since we're just iterative over json the values returned are all
   python dicts for easy manipulation.
 - Not bound to a particilar version of the platform.  This module should work against any
-  version of the api as long as the endpoints are not signifigantly different.
+  version of the api as long as the endpoints are not signifigantly different.  You can
+  have you code call a specific version of the endpoint if that is needed.
 - Python 2/3 compatible:  I'm developing in python 3 and presuming it's not a total hack
   job I'm patching to make sure it runs on python 2 as well.
 
