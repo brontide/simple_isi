@@ -375,7 +375,7 @@ class NsClient(object):
     post = partialmethod(call, 'POST')
     delete = partialmethod(call, 'DELETE')
 
-    def scandir(self, path='',
+    def scandir(self, path,
                 detail=['name', 'owner', 'group',
                         'type', 'mode', 'size', 'block_size',
                         'mtime_val', 'atime_val', 'ctime_val',
@@ -411,7 +411,7 @@ class NsClient(object):
         ''' Utility function to interpret the json values as python where approprate '''
 
         # these should be int() converted
-        convert_to_int = set(
+        convert_to_int = set((
             'size',
             'block_size',
             'mtime_val',
@@ -421,13 +421,13 @@ class NsClient(object):
             'uid',
             'gid',
             'id',
-            'nlink')
+            'nlink'))
         # there should be fromtimestamp() converted
-        convert_to_time = set(
+        convert_to_time = set((
             'mtime_val',
             'atime_val',
             'ctime_val',
-            'btime_val')
+            'btime_val'))
         # this is the mapping of type to mode
         type_to_flag = {'container': 0o0040000, 'object': 0o0100000,
                         'pipe': 0o0010000, 'character_device': 0o0020000,

@@ -5,6 +5,74 @@ Both the comand line tool `isicmd` and the libraris are designed for utter simpl
 comprehensibility.  Where possible we do as little as possible to get you talking with the
 PAPI on the host.
 
+WHY?
+___
+
+Why would I write this when there is an official sdk?  Because I just needed one thing and
+I felt like the official API was very heavyweight and lacked the finess of that some quick
+python could acheive.  What started as some helper functions that I wrote quickly became
+a class and that spawned additional features. 
+
+**Standout feature**
+
+  - iterators:  A successful call can be iterated over with `.iter_json()` and it will
+    automatically re-call the API if needed
+  - session cookies:  No need to hardcode credentials this utiliy will call for credentials
+    when needed, if needed.  If there is a valid isisessid cookie stashed it will not
+    prompt
+  - structures as dict:  Since we're just iterative over json the values returned are all
+    python dicts for easy manipulation.
+  - Not bound to a particilar version of the platform.  This module should work against any
+    version of the api as long as the endpoints are not signifigantly different.
+  - Python 2/3 compatible:  I'm developing in python 3 and presuming it's not a total hack
+    job I'm patching to make sure it runs on python 2 as well.
+
+
+Python usage
+------------
+
+.. code-block::
+    from __future__ import print_function
+
+    import logging
+    logger = logging.getLogger()
+    logging.basicConfig(
+                level=20,
+                format='%(relativeCreated)6.1f %(processName)12s: %(levelname).1s %(module)8.8s:%(lineno)-4d %(message)s')
+
+    # For py2 interactive, ugly hack to enable utf-8 at the repl
+    try:
+        import sys
+        reload(sys)
+        sys.setdefaultencoding('utf-8')
+    except:
+        pass
+
+    # Library code
+    import simple_isi
+
+    # disable warnings if your host doesn't have a full SSL
+    simple_isi.quiet()
+
+    # Create a client session and make it ready for actions 
+    client = simple_isi.IsiClient(server='ritstor.rit.albany.edu', verify=False)
+    # Prompt for creds if needed
+    client.is_ready()
+
+    # Create a PAPI session
+    papi = simple_isi.PapiClient(client)
+    # Get first quota
+    print(next(papi.get('quota/quotas').iter_json()))
+    # Get first accounting quota
+    print(next(papi.get('quota/quotas', enforced=False).iter_json()))
+
+    # Create a NS client and list some directories
+    # the ns object has scandir and walk workalikes
+    ns = simple_isi.NsClient(client, 'ifs')
+    ns.ll('testing')
+    ns.llr('primary/homes/ew2193/testing')
+
+
 isicmd - command line
 ---------------------
 
